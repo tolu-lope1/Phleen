@@ -1,0 +1,58 @@
+/*********
+  Rui Santos
+  Complete project details at https://RandomNerdTutorials.com/vs-code-platformio-ide-esp32-esp8266-arduino/
+*********/
+
+#include <Arduino.h>
+#define NUM_MOTORS 9
+int motorPins[NUM_MOTORS] = {2, 4, 5, 12, 13, 14, 15, 18, 19};
+
+// State machine variables
+int currentState = 0;
+unsigned long lastStateChangeTime = 0;
+const unsigned long totalCycleDuration = 90000; // 90 seconds
+const int repetitions = 3;                      // Number of repetitions of the states
+const int statesPerCycle = 8;                   // Number of states (State 0 to State 7)
+
+const unsigned long stateDuration = (totalCycleDuration / repetitions) / statesPerCycle;
+struct State {
+    bool motorStates[NUM_MOTORS]; // Motor ON/OFF states
+    int pwmDutyCycles[NUM_MOTORS]; // PWM duty cycle (0-255) for each motor
+};
+
+State states[] = {
+    // {Motor ON/OFF, PWM Duty Cycles}
+    {{1, 0, 0, 0, 0, 0, 0, 0, 0}, {128, 0, 0, 0, 0, 0, 0, 0, 0}}, // State 0
+    {{0, 1, 0, 0, 0, 0, 0, 0, 0}, {0, 150, 0, 0, 0, 0, 0, 0, 0}}, // State 1
+    {{0, 0, 1, 0, 0, 0, 0, 0, 0}, {0, 0, 180, 0, 0, 0, 0, 0, 0}}, // State 2
+    {{1, 1, 1, 0, 0, 0, 0, 0, 0}, {100, 120, 140, 0, 0, 0, 0, 0, 0}}, // State 3
+    {{0, 0, 0, 1, 1, 0, 0, 0, 0}, {0, 0, 0, 200, 220, 0, 0, 0, 0}}, // State 4
+    {{0, 0, 0, 0, 0, 1, 1, 1, 0}, {0, 0, 0, 0, 0, 170, 190, 210, 0}}, // State 5
+    {{0, 0, 0, 0, 0, 0, 0, 0, 1}, {0, 0, 0, 0, 0, 0, 0, 0, 255}}, // State 6
+    {{1, 1, 1, 1, 1, 1, 1, 1, 1}, {255, 255, 255, 255, 255, 255, 255, 255, 255}}, // State 7
+};
+
+const int numStates = sizeof(states) / sizeof(states[0]);
+
+void setup() {
+    for (int i = 0; i < NUM_MOTORS; i++) {
+        pinMode(motorPins[i], OUTPUT);
+        ledcAttachPin(motorPins[i], i); 
+        ledcSetup(i, 5000, 8);       
+    }
+}
+
+void loop() {
+    unsigned long currentTime = millis();
+    if (currentTime - lastStateChangeTime > stateDuration) {
+        currentState = (currentState + 1) % numStates;
+        lastStateChangeTime = currentTime;
+        for (int i = 0; i < NUM_MOTORS; i++) {
+            if (states[currentState].motorStates[i]) {
+                ledcWrite(i, states[currentState].pwmDutyCycles[i]);
+            } else {
+                ledcWrite(i, 0);
+            }
+        }
+    }
+}
